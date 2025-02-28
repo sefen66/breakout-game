@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Breakout Game</title>
+    <style>
+        body {
+            text-align: center;
+            background-color: #000;
+            margin: 0;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            background: radial-gradient(
+        circle farthest-side at 0% 50%,
+        #282828 23.5%,
+        rgba(255, 170, 0, 0) 0
+      )
+      21px 30px,
+    radial-gradient(
+        circle farthest-side at 0% 50%,
+        #a1000e 24%,
+        rgba(240, 166, 17, 0) 0
+      )
+      19px 30px,
+    linear-gradient(
+        #282828 14%,
+        rgba(240, 166, 17, 0) 0,
+        rgba(240, 166, 17, 0) 85%,
+        #282828 0
+      )
+      0 0,
+    linear-gradient(
+        150deg,
+        #282828 24%,
+        #a1000e 0,
+        #a1000e 26%,
+        rgba(240, 166, 17, 0) 0,
+        rgba(240, 166, 17, 0) 74%,
+        #a1000e 0,
+        #a1000e 76%,
+        #282828 0
+      )
+      0 0,
+    linear-gradient(
+        30deg,
+        #282828 24%,
+        #a1000e 0,
+        #a1000e 26%,
+        rgba(240, 166, 17, 0) 0,
+        rgba(240, 166, 17, 0) 74%,
+        #a1000e 0,
+        #a1000e 76%,
+        #282828 0
+      )
+      0 0,
+    linear-gradient(90deg, #a1000e 2%, #282828 0, #282828 98%, #a1000e 0%) 0 0
+      #282828;
+  background-size: 40px 60px;
+            display: block;
+        }
+        #score, #startButton, #restartButton {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            font-size: 24px;
+        }
+        #startButton, #restartButton {
+            --main-color: rgb(46, 213, 115);
+            --main-bg-color: rgba(46, 213, 116, 0.36);
+            --pattern-color: rgba(46, 213, 116, 0.073);
+            filter: hue-rotate(0deg);
+            cursor: pointer;
+            text-transform: uppercase;
+            letter-spacing: 0.5rem;
+            background: radial-gradient(
+                circle,
+                var(--main-bg-color) 0%,
+                rgba(0, 0, 0, 0) 95%
+            ),
+            linear-gradient(var(--pattern-color) 1px, transparent 1px),
+            linear-gradient(to right, var(--pattern-color) 1px, transparent 1px);
+            background-size:
+                cover,
+                15px 15px,
+                15px 15px;
+            background-position:
+                center center,
+                center center,
+                center center;
+            border-image: radial-gradient(
+                circle,
+                var(--main-color) 0%,
+                rgba(0, 0, 0, 0) 100%
+            )
+            1;
+            border-width: 1px 0 1px 0;
+            color: var(--main-color);
+            padding: 1rem 3rem;
+            font-weight: 700;
+            font-size: 1.5rem;
+            transition: background-size 0.2s ease-in-out;
+            top: 250px;
+        }
+        #restartButton {
+            display: none;
+        }
+        .button:hover {
+            background-size:
+                cover,
+                10px 10px,
+                10px 10px;
+        }
+        .button:active {
+            filter: hue-rotate(250deg);
+        }
+        #gameOver, #winMessage {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: white;
+            font-size: 48px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Score: 0</div>
+    <button id="startButton">Start Game</button>
+    <button id="restartButton">Restart Game</button>
+    <div id="gameOver">Game Over! Final Score: <span id="finalScore">0</span></div>
+    <div id="winMessage">You Win! Final Score: <span id="winScore">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+    <audio id="hitSound" src="paddle.mp3"></audio>
+    <audio id="brickSound1" src="Break1.mp3"></audio>
+    <audio id="brickSound2" src="Break2.mp3"></audio>
+    <audio id="brickSound3" src="Break3.mp3"></audio>
+    <audio id="gameOverSound" src="gameOver.mp3"></audio>
+    <audio id="winSound" src="win.mp3"></audio>
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreDisplay = document.getElementById("score");
+        const startButton = document.getElementById("startButton");
+        const restartButton = document.getElementById("restartButton");
+        const gameOverDisplay = document.getElementById("gameOver");
+        const winMessage = document.getElementById("winMessage");
+        const finalScoreDisplay = document.getElementById("finalScore");
+        const winScoreDisplay = document.getElementById("winScore");
+        const hitSound = document.getElementById("hitSound");
+        const brickSound1 = document.getElementById("brickSound1");
+        const brickSound2 = document.getElementById("brickSound2");
+        const brickSound3 = document.getElementById("brickSound3");
+        const gameOverSound = document.getElementById("gameOverSound");
+        const winSound = document.getElementById("winSound");
+        let gameRunning = false;
+        
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        
+        let balls = [];
+        let paddleHeight = 10;
+        let paddleWidth = 100;
+        let paddleX = (canvas.width - paddleWidth) / 2;
+        let score = 0;
+        let bricks = [];
+        let rightPressed = false;
+        let leftPressed = false;
+        let powerUp = null;
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        const brickRowCount = 5;
+        const brickColumnCount = 10;
+        const brickWidth = canvas.width / brickColumnCount - 2;
+        const brickHeight = 70;
+        const brickPadding = 5;
+        const brickOffsetTop = 50;
+        const brickOffsetLeft = 5;
+        
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowRight") rightPressed = true;
+            if (e.key === "ArrowLeft") leftPressed = true;
+        });
+        
+        document.addEventListener("keyup", (e) => {
+            if (e.key === "ArrowRight") rightPressed = false;
+            if (e.key === "ArrowLeft") leftPressed = false;
+        });
+        
+        document.addEventListener("touchstart", (e) => {
+            touchStartX = e.touches[0].clientX;
+        });
+        
+        document.addEventListener("touchmove", (e) => {
+            e.preventDefault();
+            touchEndX = e.touches[0].clientX;
+            if (touchEndX > touchStartX) {
+                rightPressed = true;
+                leftPressed = false;
+            } else if (touchEndX < touchStartX) {
+                leftPressed = true;
+                rightPressed = false;
+            }
+        });
+        
+        document.addEventListener("touchend", () => {
+            rightPressed = false;
+            leftPressed = false;
+        });
+        
+        function initializeBricks() {
+            bricks = [];
+            for (let c = 0; c < brickColumnCount; c++) {
+                bricks[c] = [];
+                for (let r = 0; r < brickRowCount; r++) {
+                    const x = c * (brickWidth + brickPadding) + brickOffsetLeft;
+                    const y = r * (brickHeight + brickPadding) + brickOffsetTop;
+                    const type = Math.floor(Math.random() * 3) + 1;
+                    bricks[c][r] = { x, y, status: 1, type, image: new Image() };
+                    bricks[c][r].image.src = type === 1 ? "break1.jpg" : type === 2 ? "break2.jpg" : "break3.jpg"; 
+                }
+            }
+        }
+        
+        function drawBricks() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    let b = bricks[c][r];
+                    if (b.status === 1) {
+                        ctx.drawImage(b.image, b.x, b.y, brickWidth, brickHeight);
+                    }
+                }
+            }
+        }
+        
+        function collisionDetection() {
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    let b = bricks[c][r];
+                    if (b.status === 1) {
+                        balls.forEach(ball => {
+                            if (ball.x > b.x && ball.x < b.x + brickWidth && ball.y > b.y && ball.y < b.y + brickHeight) {
+                                ball.dy = -ball.dy;
+                                b.status = 0;
+                                score += 10;
+                                scoreDisplay.innerText = `Score: ${score}`;
+                                if (b.type === 1) {
+                                    brickSound1.currentTime = 0;
+                                    brickSound1.play();
+                                } else if (b.type === 2) {
+                                    brickSound2.currentTime = 0;
+                                    brickSound2.play();
+                                } else {
+                                    brickSound3.currentTime = 0;
+                                    brickSound3.play();
+                                }
+                                if (Math.random() < 0.1) {
+                                    powerUp = { x: b.x + brickWidth / 2, y: b.y + brickHeight / 2, width: 20, height: 20 };
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        
+        function drawPaddle() {
+            ctx.fillStyle = "#0095DD";
+            ctx.fillRect(paddleX, canvas.height - paddleHeight - 10, paddleWidth, paddleHeight);
+        }
+        
+        function updatePaddle() {
+            if (rightPressed && paddleX < canvas.width - paddleWidth) {
+                paddleX += 7;
+            }
+            if (leftPressed && paddleX > 0) {
+                paddleX -= 7;
+            }
+        }
+        
+        function drawBalls() {
+            balls.forEach(ball => {
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+                ctx.fillStyle = "#FFF";
+                ctx.fill();
+                ctx.closePath();
+            });
+        }
+        
+        function updateBalls() {
+            balls.forEach((ball, index) => {
+                ball.x += ball.dx;
+                ball.y += ball.dy;
+                if (ball.x + ball.radius > canvas.width || ball.x - ball.radius < 0) ball.dx = -ball.dx;
+                if (ball.y - ball.radius < 0) ball.dy = -ball.dy;
+                if (ball.y + ball.radius > canvas.height - paddleHeight - 10 && ball.x > paddleX && ball.x < paddleX + paddleWidth) {
+                    ball.dy = -ball.dy;
+                    hitSound.currentTime = 0;
+                    hitSound.play();
+                }
+                if (ball.y + ball.radius > canvas.height) {
+                    balls.splice(index, 1);
+                }
+            });
+
+            if (balls.length === 0) {
+                gameOver();
+            }
+        }
+        
+        function drawPowerUp() {
+            if (powerUp) {
+                ctx.fillStyle = "#FFD700";
+                ctx.fillRect(powerUp.x, powerUp.y, powerUp.width, powerUp.height);
+            }
+        }
+        
+        function updatePowerUp() {
+            if (powerUp) {
+                powerUp.y += 2;
+                if (powerUp.y + powerUp.height > canvas.height - paddleHeight - 10 && powerUp.x > paddleX && powerUp.x < paddleX + paddleWidth) {
+                    balls.push({ x: canvas.width / 2, y: canvas.height - 30, dx: 2, dy: -2, radius: 10 });
+                    powerUp = null;
+                }
+            }
+        }
+        
+        function checkWin() {
+            let allBricksBroken = true;
+            for (let c = 0; c < brickColumnCount; c++) {
+                for (let r = 0; r < brickRowCount; r++) {
+                    if (bricks[c][r].status === 1) {
+                        allBricksBroken = false;
+                        break;
+                    }
+                }
+                if (!allBricksBroken) break;
+            }
+            if (allBricksBroken) {
+                gameRunning = false;
+                winScoreDisplay.innerText = score;
+                winMessage.style.display = "block";
+                winSound.currentTime = 0;
+                winSound.play();
+            }
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            finalScoreDisplay.innerText = score;
+            gameOverDisplay.style.display = "block";
+            restartButton.style.display = "block";
+            gameOverSound.currentTime = 0;
+            gameOverSound.play();
+        }
+        
+        function draw() {
+            if (!gameRunning) return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBricks();
+            drawPaddle();
+            drawBalls();
+            drawPowerUp();
+            updatePaddle();
+            updateBalls();
+            updatePowerUp();
+            collisionDetection();
+            checkWin();
+            requestAnimationFrame(draw);
+        }
+        
+        function startGame() {
+            gameRunning = true;
+            startButton.style.display = "none";
+            restartButton.style.display = "none";
+            gameOverDisplay.style.display = "none";
+            winMessage.style.display = "none";
+            balls = [{ x: canvas.width / 2, y: canvas.height - 30, dx: 2, dy: -2, radius: 10 }];
+            score = 0;
+            scoreDisplay.innerText = `Score: ${score}`;
+            initializeBricks();
+            draw();
+        }
+        
+        startButton.addEventListener("click", startGame);
+        restartButton.addEventListener("click", startGame);
+    </script>
+</body>
+</html>
